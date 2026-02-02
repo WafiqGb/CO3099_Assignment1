@@ -9,6 +9,7 @@ import java.security.spec.*;
 public class Decryptor {
     
     public static void main(String[] args) {
+        // Check command line arguments
         if (args.length != 3) {
             System.err.println("Usage: java Decryptor <host> <port> <userid>");
             System.exit(1);
@@ -18,6 +19,11 @@ public class Decryptor {
         int port;
         try {
             port = Integer.parseInt(args[1]);
+            if (port < 1 || port > 65535) {
+                System.err.println("Error: Port must be between 1 and 65535");
+                System.exit(1);
+                return;
+            }
         } catch (NumberFormatException e) {
             System.err.println("Error: Invalid port number");
             System.exit(1);
@@ -26,11 +32,30 @@ public class Decryptor {
         String userid = args[2];
         
         try {
+            // Check required files exist
+            Path privateKeyFile = Paths.get(userid + ".prv");
+            if (!Files.exists(privateKeyFile)) {
+                System.err.println("Error: Private key file not found - " + userid + ".prv");
+                System.exit(1);
+            }
+            
+            Path aesKeyFile = Paths.get("aes.key");
+            if (!Files.exists(aesKeyFile)) {
+                System.err.println("Error: Encrypted key file not found - aes.key");
+                System.exit(1);
+            }
+            
+            Path encryptedFile = Paths.get("test.txt.cry");
+            if (!Files.exists(encryptedFile)) {
+                System.err.println("Error: Encrypted file not found - test.txt.cry");
+                System.exit(1);
+            }
+            
             // 1. Load user's private key for signing
             PrivateKey userPrivateKey = loadUserPrivateKey(userid);
             
             // 2. Read encrypted AES key
-            byte[] encryptedAesKey = Files.readAllBytes(Paths.get("aes.key"));
+            byte[] encryptedAesKey = Files.readAllBytes(aesKeyFile);
             
             // 3. Generate signature over (userid + encrypted AES key)
             byte[] signature = generateSignature(userid, encryptedAesKey, userPrivateKey);
@@ -38,7 +63,11 @@ public class Decryptor {
             // 4. Connect to server and send request
             System.out.println("Connecting to " + host + ":" + port + "...");
             
-            try (Socket socket = new Socket(host, port)) {
+            try (Socket socket = new Socket()) {
+                // Set connection timeout
+                socket.connect(new InetSocketAddress(host, port), 10000);
+                socket.setSoTimeout(30000); // Read timeout
+                
                 DataOutputStream out = new DataOutputStream(socket.getOutputStream());
                 DataInputStream in = new DataInputStream(socket.getInputStream());
                 
@@ -84,6 +113,15 @@ public class Decryptor {
             
         } catch (ConnectException e) {
             System.err.println("Error: Could not connect to server at " + host + ":" + port);
+            System.err.println("Make sure the server is running.");
+        } catch (SocketTimeoutException e) {
+            System.err.println("Error: Connection timed out");
+        } catch (UnknownHostException e) {
+            System.err.println("Error: Unknown host - " + host);
+        } catch (java.nio.file.NoSuchFileException e) {
+            System.err.println("Error: File not found - " + e.getFile());
+        } catch (BadPaddingException e) {
+            System.err.println("Error: Decryption failed - wrong key or corrupted file");
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }

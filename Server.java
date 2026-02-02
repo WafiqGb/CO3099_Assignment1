@@ -14,6 +14,7 @@ public class Server {
     private PrivateKey masterPrivateKey;
     
     public static void main(String[] args) {
+        // Check command line arguments
         if (args.length != 1) {
             System.err.println("Usage: java Server <port>");
             System.exit(1);
@@ -22,16 +23,29 @@ public class Server {
         int port;
         try {
             port = Integer.parseInt(args[0]);
+            if (port < 1 || port > 65535) {
+                System.err.println("Error: Port must be between 1 and 65535");
+                System.exit(1);
+                return;
+            }
         } catch (NumberFormatException e) {
             System.err.println("Error: Invalid port number");
             System.exit(1);
             return;
         }
         
+        // Check master private key file exists
+        if (!Files.exists(Paths.get(MASTER_PRIVATE_KEY_FILE))) {
+            System.err.println("Error: Master private key file not found - " + MASTER_PRIVATE_KEY_FILE);
+            System.exit(1);
+        }
+        
         try {
             Server server = new Server();
             server.loadMasterPrivateKey();
             server.start(port);
+        } catch (BindException e) {
+            System.err.println("Error: Port " + port + " is already in use");
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
@@ -44,70 +58,110 @@ public class Server {
             
             // Run continuously, handle one client at a time
             while (true) {
-                try (Socket clientSocket = serverSocket.accept()) {
+                Socket clientSocket = null;
+                try {
+                    clientSocket = serverSocket.accept();
                     System.out.println("\nClient connected: " + clientSocket.getInetAddress());
                     handleClient(clientSocket);
                 } catch (Exception e) {
                     // Don't crash on client errors, continue accepting new clients
                     System.err.println("Client error: " + e.getMessage());
+                } finally {
+                    // Always close the client socket
+                    if (clientSocket != null && !clientSocket.isClosed()) {
+                        try {
+                            clientSocket.close();
+                        } catch (IOException e) {
+                            // Ignore close errors
+                        }
+                    }
                 }
             }
         }
     }
     
-    private void handleClient(Socket clientSocket) throws Exception {
-        DataInputStream in = new DataInputStream(clientSocket.getInputStream());
-        DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream());
+    private void handleClient(Socket clientSocket) {
+        DataInputStream in = null;
+        DataOutputStream out = null;
         
-        // Read request fields (per protocol spec)
-        // 1. userid as UTF string
-        String userid = in.readUTF();
-        
-        // 2. payment id as UTF string
-        String paymentId = in.readUTF();
-        
-        // 3. encrypted AES key length + bytes
-        int encKeyLen = in.readInt();
-        byte[] encryptedAesKey = new byte[encKeyLen];
-        in.readFully(encryptedAesKey);
-        
-        // 4. signature length + bytes
-        int sigLen = in.readInt();
-        byte[] signature = new byte[sigLen];
-        in.readFully(signature);
-        
-        System.out.println("Received request from: " + userid);
-        System.out.println("Payment ID: " + paymentId);
-        
-        // Verify signature
-        boolean valid = false;
         try {
-            valid = verifySignature(userid, encryptedAesKey, signature);
+            clientSocket.setSoTimeout(30000); // 30 second timeout
+            in = new DataInputStream(clientSocket.getInputStream());
+            out = new DataOutputStream(clientSocket.getOutputStream());
+            
+            // Read request fields (per protocol spec)
+            // 1. userid as UTF string
+            String userid = in.readUTF();
+            
+            // 2. payment id as UTF string
+            String paymentId = in.readUTF();
+            
+            // 3. encrypted AES key length + bytes
+            int encKeyLen = in.readInt();
+            if (encKeyLen <= 0 || encKeyLen > 1024) {
+                throw new IOException("Invalid encrypted key length: " + encKeyLen);
+            }
+            byte[] encryptedAesKey = new byte[encKeyLen];
+            in.readFully(encryptedAesKey);
+            
+            // 4. signature length + bytes
+            int sigLen = in.readInt();
+            if (sigLen <= 0 || sigLen > 1024) {
+                throw new IOException("Invalid signature length: " + sigLen);
+            }
+            byte[] signature = new byte[sigLen];
+            in.readFully(signature);
+            
+            System.out.println("Received request from: " + userid);
+            if (!paymentId.isEmpty()) {
+                System.out.println("Payment ID: " + paymentId);
+            }
+            
+            // Verify signature
+            boolean valid = false;
+            String errorMessage = "Signature verification failed";
+            
+            try {
+                valid = verifySignature(userid, encryptedAesKey, signature);
+            } catch (java.nio.file.NoSuchFileException e) {
+                errorMessage = "Unknown user: " + userid;
+                System.err.println("Public key not found for user: " + userid);
+            } catch (Exception e) {
+                errorMessage = "Verification error";
+                System.err.println("Signature verification error: " + e.getMessage());
+            }
+            
+            if (valid) {
+                System.out.println("Signature VALID for " + userid);
+                
+                // Decrypt AES key
+                byte[] decryptedAesKey = decryptAesKey(encryptedAesKey);
+                
+                // Send success response
+                out.writeBoolean(true);
+                out.writeInt(decryptedAesKey.length);
+                out.write(decryptedAesKey);
+                out.flush();
+                
+                System.out.println("Decrypted AES key sent to " + userid);
+            } else {
+                System.out.println("Signature INVALID for " + userid);
+                System.out.println("Verification failed. Access denied.");
+                
+                // Send failure response
+                out.writeBoolean(false);
+                out.writeUTF(errorMessage);
+                out.flush();
+            }
+            
+        } catch (SocketTimeoutException e) {
+            System.err.println("Client timed out");
+        } catch (EOFException e) {
+            System.err.println("Client disconnected unexpectedly");
+        } catch (IOException e) {
+            System.err.println("IO error: " + e.getMessage());
         } catch (Exception e) {
-            System.err.println("Signature verification error: " + e.getMessage());
-        }
-        
-        if (valid) {
-            System.out.println("Signature VALID for " + userid);
-            
-            // Decrypt AES key
-            byte[] decryptedAesKey = decryptAesKey(encryptedAesKey);
-            
-            // Send success response
-            out.writeBoolean(true);
-            out.writeInt(decryptedAesKey.length);
-            out.write(decryptedAesKey);
-            out.flush();
-            
-            System.out.println("Decrypted AES key sent to " + userid);
-        } else {
-            System.out.println("Signature INVALID for " + userid);
-            System.out.println("Verification failed. Access denied.");
-            
-            // Send failure response
-            out.writeBoolean(false);
-            out.writeUTF("Signature verification failed");
-            out.flush();
+            System.err.println("Error handling client: " + e.getMessage());
         }
     }
     
