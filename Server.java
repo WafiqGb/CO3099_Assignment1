@@ -119,9 +119,9 @@ public class Server {
             try {
                 valid = verifySignature(userid, encryptedAesKey, signature);
             } catch (java.nio.file.NoSuchFileException e) {
-                System.out.println("Signature not verified.");
+                // Public key file not found for this user
             } catch (Exception e) {
-                System.out.println("Signature not verified.");
+                // Signature verification failed
             }
             
             if (valid) {
@@ -136,7 +136,8 @@ public class Server {
                 out.write(decryptedAesKey);
                 out.flush();
             } else {
-                System.out.println("Signature not verified.");
+                // Include userid in failure message as required by spec
+                System.out.println("User " + userid + ": Signature not verified.");
                 
                 // Send failure response
                 out.writeBoolean(false);
