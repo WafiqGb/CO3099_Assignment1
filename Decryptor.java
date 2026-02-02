@@ -97,6 +97,10 @@ public class Decryptor {
                 if (success) {
                     // Read decrypted AES key
                     int keyLen = in.readInt();
+                    if (keyLen != 32) {
+                        System.err.println("Error: Invalid AES key length received: " + keyLen);
+                        System.exit(1);
+                    }
                     byte[] decryptedAesKey = new byte[keyLen];
                     in.readFully(decryptedAesKey);
                     
@@ -105,11 +109,14 @@ public class Decryptor {
                     System.out.println("Success! Your files have now been recovered!");
                     System.out.println();
                 } else {
-                    // Read error message
+                    // Read error message from server
                     String errorMsg = in.readUTF();
                     System.out.println("Unfortunately we cannot verify your identity.");
                     System.out.println("Please try again, making sure that you have the correct signature");
                     System.out.println("key in place and have entered the correct userid.");
+                    if (errorMsg != null && !errorMsg.isEmpty()) {
+                        System.out.println("Server message: " + errorMsg);
+                    }
                     System.out.println();
                 }
             }
