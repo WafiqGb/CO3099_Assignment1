@@ -187,7 +187,8 @@ public class Server {
     }
     
     private byte[] decryptAesKey(byte[] encryptedAesKey) throws Exception {
-        Cipher rsaCipher = Cipher.getInstance("RSA");
+        // Use explicit padding for cross-platform consistency
+        Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         rsaCipher.init(Cipher.DECRYPT_MODE, masterPrivateKey);
         return rsaCipher.doFinal(encryptedAesKey);
     }
