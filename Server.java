@@ -54,14 +54,12 @@ public class Server {
     private void start(int port) throws Exception {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Server started on port " + port);
-            System.out.println("Waiting for connections...");
             
             // Run continuously, handle one client at a time
             while (true) {
                 Socket clientSocket = null;
                 try {
                     clientSocket = serverSocket.accept();
-                    System.out.println("\nClient connected: " + clientSocket.getInetAddress());
                     handleClient(clientSocket);
                 } catch (Exception e) {
                     // Don't crash on client errors, continue accepting new clients
@@ -83,6 +81,7 @@ public class Server {
     private void handleClient(Socket clientSocket) {
         DataInputStream in = null;
         DataOutputStream out = null;
+        String userid = "unknown";
         
         try {
             clientSocket.setSoTimeout(30000); // 30 second timeout
@@ -91,7 +90,7 @@ public class Server {
             
             // Read request fields (per protocol spec)
             // 1. userid as UTF string
-            String userid = in.readUTF();
+            userid = in.readUTF();
             
             // 2. payment id as UTF string
             String paymentId = in.readUTF();
@@ -112,27 +111,21 @@ public class Server {
             byte[] signature = new byte[sigLen];
             in.readFully(signature);
             
-            System.out.println("Received request from: " + userid);
-            if (!paymentId.isEmpty()) {
-                System.out.println("Payment ID: " + paymentId);
-            }
+            System.out.println("User " + userid + " connected.");
             
             // Verify signature
             boolean valid = false;
-            String errorMessage = "Signature verification failed";
             
             try {
                 valid = verifySignature(userid, encryptedAesKey, signature);
             } catch (java.nio.file.NoSuchFileException e) {
-                errorMessage = "Unknown user: " + userid;
-                System.err.println("Public key not found for user: " + userid);
+                System.out.println("Signature not verified.");
             } catch (Exception e) {
-                errorMessage = "Verification error";
-                System.err.println("Signature verification error: " + e.getMessage());
+                System.out.println("Signature not verified.");
             }
             
             if (valid) {
-                System.out.println("Signature VALID for " + userid);
+                System.out.println("Signature verified. Key decrypted and sent.");
                 
                 // Decrypt AES key
                 byte[] decryptedAesKey = decryptAesKey(encryptedAesKey);
@@ -142,15 +135,12 @@ public class Server {
                 out.writeInt(decryptedAesKey.length);
                 out.write(decryptedAesKey);
                 out.flush();
-                
-                System.out.println("Decrypted AES key sent to " + userid);
             } else {
-                System.out.println("Signature INVALID for " + userid);
-                System.out.println("Verification failed. Access denied.");
+                System.out.println("Signature not verified.");
                 
                 // Send failure response
                 out.writeBoolean(false);
-                out.writeUTF(errorMessage);
+                out.writeUTF("Signature verification failed");
                 out.flush();
             }
             
@@ -171,7 +161,6 @@ public class Server {
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         masterPrivateKey = keyFactory.generatePrivate(keySpec);
-        System.out.println("Master private key loaded.");
     }
     
     // Load user's public key from <userid>.pub (raw encoded bytes)

