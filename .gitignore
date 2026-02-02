@@ -1,0 +1,14 @@
+# Compiled Java class files
+*.class
+
+# IDE files
+.idea/
+*.iml
+
+# Generated test files
+test.txt
+test.txt.cry
+aes.key
+
+# OS files
+.DS_Store
