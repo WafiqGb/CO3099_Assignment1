@@ -109,8 +109,14 @@ public class Decryptor {
                     System.out.println("Success! Your files have now been recovered!");
                     System.out.println();
                 } else {
-                    // Read error message from server
-                    String errorMsg = in.readUTF();
+                    // Try to read optional error message from server
+                    // Server may or may not send a message after success=false
+                    String errorMsg = null;
+                    try {
+                        errorMsg = in.readUTF();
+                    } catch (EOFException | java.net.SocketException e) {
+                        // Server closed without sending message - that's OK
+                    }
                     System.out.println("Unfortunately we cannot verify your identity.");
                     System.out.println("Please try again, making sure that you have the correct signature");
                     System.out.println("key in place and have entered the correct userid.");
