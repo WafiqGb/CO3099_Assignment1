@@ -9,6 +9,13 @@
 test.txt
 test.txt.cry
 aes.key
+test.sig
+test.userid
+
+# Key files (server and user keys)
+server-b64.prv
+*.pub
+*.prv
 
 # OS files
 .DS_Store
