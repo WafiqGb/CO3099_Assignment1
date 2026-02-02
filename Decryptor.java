@@ -130,16 +130,22 @@ public class Decryptor {
         } catch (ConnectException e) {
             System.err.println("Error: Could not connect to server at " + host + ":" + port);
             System.err.println("Make sure the server is running.");
+            System.exit(1);
         } catch (SocketTimeoutException e) {
             System.err.println("Error: Connection timed out");
+            System.exit(1);
         } catch (UnknownHostException e) {
             System.err.println("Error: Unknown host - " + host);
+            System.exit(1);
         } catch (java.nio.file.NoSuchFileException e) {
             System.err.println("Error: File not found - " + e.getFile());
+            System.exit(1);
         } catch (BadPaddingException e) {
             System.err.println("Error: Decryption failed - wrong key or corrupted file");
+            System.exit(1);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            System.exit(1);
         }
     }
     

@@ -64,10 +64,13 @@ public class WannaCry {
             
         } catch (java.nio.file.NoSuchFileException e) {
             System.err.println("Error: File not found - " + e.getFile());
+            System.exit(1);
         } catch (java.io.IOException e) {
             System.err.println("Error: IO error - " + e.getMessage());
+            System.exit(1);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
+            System.exit(1);
         }
     }
     
