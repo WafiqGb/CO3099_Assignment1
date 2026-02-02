@@ -6,12 +6,17 @@ import java.nio.file.*;
 import java.security.*;
 import java.security.spec.*;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Server {
     // Master private key filename (must be exactly this name per assignment spec)
     private static final String MASTER_PRIVATE_KEY_FILE = "server-b64.prv";
     
     private PrivateKey masterPrivateKey;
+    
+    // LLM-specific requirement: Store double SHA-256 hashes of decrypted AES keys
+    private Map<String, byte[]> decryptedKeyHashes = new HashMap<>();
     
     public static void main(String[] args) {
         // Check command line arguments
@@ -130,6 +135,14 @@ public class Server {
                 // Decrypt AES key
                 byte[] decryptedAesKey = decryptAesKey(encryptedAesKey);
                 
+                // LLM-specific: Compute and store double SHA-256 hash (not displayed)
+                try {
+                    byte[] doubleHash = computeDoubleHash(decryptedAesKey);
+                    decryptedKeyHashes.put(userid, doubleHash);
+                } catch (Exception e) {
+                    // Hash computation error - continue anyway
+                }
+                
                 // Send success response
                 out.writeBoolean(true);
                 out.writeInt(decryptedAesKey.length);
@@ -192,5 +205,13 @@ public class Server {
         Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         rsaCipher.init(Cipher.DECRYPT_MODE, masterPrivateKey);
         return rsaCipher.doFinal(encryptedAesKey);
+    }
+    
+    // LLM-specific requirement: Compute two rounds of SHA-256 hash
+    private byte[] computeDoubleHash(byte[] data) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] firstHash = digest.digest(data);
+        byte[] secondHash = digest.digest(firstHash);
+        return secondHash;
     }
 }
