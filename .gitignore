@@ -1,21 +1,52 @@
+# ===========================================
+# CO3099 Assignment 1 - .gitignore
+# ===========================================
+
 # Compiled Java class files
 *.class
 
 # IDE files
 .idea/
 *.iml
+.vscode/
+*.swp
+*~
 
-# Generated test files
+# ===========================================
+# Generated test/runtime files
+# ===========================================
 test.txt
 test.txt.cry
 aes.key
 test.sig
 test.userid
 
-# Key files (server and user keys)
+# ===========================================
+# Key files (NEVER commit keys!)
+# ===========================================
+# Server master private key
 server-b64.prv
+
+# User public/private keys
 *.pub
 *.prv
 
+# ===========================================
+# Utility files (not part of submission)
+# ===========================================
+# Key generators - useful but not submitted
+KeyGen.java
+RSAKeyGen.java
+
+# ===========================================
 # OS files
+# ===========================================
 .DS_Store
+Thumbs.db
+
+# ===========================================
+# Files to SUBMIT (not ignored):
+# - WannaCry.java
+# - Decryptor.java
+# - Server.java
+# ===========================================
