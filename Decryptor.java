@@ -1,6 +1,7 @@
 import javax.crypto.*;
 import javax.crypto.spec.*;
 import java.io.*;
+import java.net.*;
 import java.nio.file.*;
 import java.security.*;
 import java.security.spec.*;
@@ -8,9 +9,6 @@ import java.security.spec.*;
 public class Decryptor {
     
     public static void main(String[] args) {
-        // Phase 3: Signature generation (no networking yet)
-        // Phase 4 will add: network connection to server
-        
         if (args.length != 3) {
             System.err.println("Usage: java Decryptor <host> <port> <userid>");
             System.exit(1);
@@ -30,29 +28,62 @@ public class Decryptor {
         try {
             // 1. Load user's private key for signing
             PrivateKey userPrivateKey = loadUserPrivateKey(userid);
-            System.out.println("Loaded private key for " + userid);
             
             // 2. Read encrypted AES key
             byte[] encryptedAesKey = Files.readAllBytes(Paths.get("aes.key"));
-            System.out.println("Loaded encrypted AES key (" + encryptedAesKey.length + " bytes)");
             
             // 3. Generate signature over (userid + encrypted AES key)
             byte[] signature = generateSignature(userid, encryptedAesKey, userPrivateKey);
-            System.out.println("Generated signature (" + signature.length + " bytes)");
             
-            // Phase 3 test: Write signature to file for Server to verify
-            Files.write(Paths.get("test.sig"), signature);
-            Files.writeString(Paths.get("test.userid"), userid);
-            System.out.println("Saved signature to test.sig for Server verification test");
+            // 4. Connect to server and send request
+            System.out.println("Connecting to " + host + ":" + port + "...");
             
-            // Phase 4 will add:
-            // - Connect to server at host:port
-            // - Send userid, payment_id, encrypted AES key, signature
-            // - Receive decrypted AES key
-            // - Decrypt test.txt.cry to test.txt
+            try (Socket socket = new Socket(host, port)) {
+                DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                DataInputStream in = new DataInputStream(socket.getInputStream());
+                
+                // Send request fields (per protocol spec)
+                // 1. userid as UTF string
+                out.writeUTF(userid);
+                
+                // 2. payment id as UTF string (can be empty)
+                out.writeUTF("");
+                
+                // 3. encrypted AES key length + bytes
+                out.writeInt(encryptedAesKey.length);
+                out.write(encryptedAesKey);
+                
+                // 4. signature length + bytes
+                out.writeInt(signature.length);
+                out.write(signature);
+                out.flush();
+                
+                System.out.println("Request sent. Waiting for response...");
+                
+                // Read response
+                boolean success = in.readBoolean();
+                
+                if (success) {
+                    // Read decrypted AES key
+                    int keyLen = in.readInt();
+                    byte[] decryptedAesKey = new byte[keyLen];
+                    in.readFully(decryptedAesKey);
+                    
+                    System.out.println("Received decrypted AES key from server.");
+                    
+                    // Decrypt the file
+                    decryptFile(decryptedAesKey);
+                    System.out.println("File recovery successful!");
+                } else {
+                    // Read error message
+                    String errorMsg = in.readUTF();
+                    System.err.println("Server denied request: " + errorMsg);
+                    System.err.println("Identity could not be verified.");
+                }
+            }
             
-            System.out.println("\nPhase 3 complete. Run Server to verify signature.");
-            
+        } catch (ConnectException e) {
+            System.err.println("Error: Could not connect to server at " + host + ":" + port);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
@@ -79,8 +110,8 @@ public class Decryptor {
         return sig.sign();
     }
     
-    // Will be used in Phase 4 after receiving decrypted AES key from server
-    public static void decryptFile(byte[] aesKeyBytes) throws Exception {
+    // Decrypt test.txt.cry to test.txt using AES key
+    private static void decryptFile(byte[] aesKeyBytes) throws Exception {
         SecretKey aesKey = new SecretKeySpec(aesKeyBytes, "AES");
         
         byte[] iv = new byte[16]; // all zeros
@@ -92,6 +123,5 @@ public class Decryptor {
         byte[] plaintext = cipher.doFinal(ciphertext);
         
         Files.write(Paths.get("test.txt"), plaintext);
-        System.out.println("File decrypted successfully! test.txt recovered.");
     }
 }

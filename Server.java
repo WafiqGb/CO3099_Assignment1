@@ -1,5 +1,7 @@
 import javax.crypto.*;
 import javax.crypto.spec.*;
+import java.io.*;
+import java.net.*;
 import java.nio.file.*;
 import java.security.*;
 import java.security.spec.*;
@@ -12,46 +14,100 @@ public class Server {
     private PrivateKey masterPrivateKey;
     
     public static void main(String[] args) {
-        // Phase 3: Test signature verification (no networking yet)
-        // Phase 4 will add: if (args.length != 1) { ... } and socket handling
+        if (args.length != 1) {
+            System.err.println("Usage: java Server <port>");
+            System.exit(1);
+        }
+        
+        int port;
+        try {
+            port = Integer.parseInt(args[0]);
+        } catch (NumberFormatException e) {
+            System.err.println("Error: Invalid port number");
+            System.exit(1);
+            return;
+        }
         
         try {
             Server server = new Server();
             server.loadMasterPrivateKey();
-            System.out.println("Server initialized. Master private key loaded.");
-            
-            // Phase 3 test: verify signature from test files
-            if (Files.exists(Paths.get("test.sig")) && Files.exists(Paths.get("test.userid"))) {
-                String userid = Files.readString(Paths.get("test.userid")).trim();
-                byte[] signature = Files.readAllBytes(Paths.get("test.sig"));
-                byte[] encryptedAesKey = Files.readAllBytes(Paths.get("aes.key"));
-                
-                System.out.println("\n=== Signature Verification Test ===");
-                System.out.println("User: " + userid);
-                
-                // Verify signature
-                boolean valid = server.verifySignature(userid, encryptedAesKey, signature);
-                
-                if (valid) {
-                    System.out.println("Signature VALID for " + userid);
-                    
-                    // Decrypt AES key and recover file
-                    byte[] decryptedAesKey = server.decryptAesKey(encryptedAesKey);
-                    System.out.println("AES key decrypted (" + decryptedAesKey.length + " bytes)");
-                    
-                    // Decrypt file to prove it works
-                    decryptFile(decryptedAesKey);
-                } else {
-                    System.out.println("Signature INVALID for " + userid);
-                    System.out.println("Verification failed. Access denied.");
-                }
-            } else {
-                System.out.println("No test signature files found. Run Decryptor first.");
-            }
-            
+            server.start(port);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
+        }
+    }
+    
+    private void start(int port) throws Exception {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            System.out.println("Server started on port " + port);
+            System.out.println("Waiting for connections...");
+            
+            // Run continuously, handle one client at a time
+            while (true) {
+                try (Socket clientSocket = serverSocket.accept()) {
+                    System.out.println("\nClient connected: " + clientSocket.getInetAddress());
+                    handleClient(clientSocket);
+                } catch (Exception e) {
+                    // Don't crash on client errors, continue accepting new clients
+                    System.err.println("Client error: " + e.getMessage());
+                }
+            }
+        }
+    }
+    
+    private void handleClient(Socket clientSocket) throws Exception {
+        DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+        DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream());
+        
+        // Read request fields (per protocol spec)
+        // 1. userid as UTF string
+        String userid = in.readUTF();
+        
+        // 2. payment id as UTF string
+        String paymentId = in.readUTF();
+        
+        // 3. encrypted AES key length + bytes
+        int encKeyLen = in.readInt();
+        byte[] encryptedAesKey = new byte[encKeyLen];
+        in.readFully(encryptedAesKey);
+        
+        // 4. signature length + bytes
+        int sigLen = in.readInt();
+        byte[] signature = new byte[sigLen];
+        in.readFully(signature);
+        
+        System.out.println("Received request from: " + userid);
+        System.out.println("Payment ID: " + paymentId);
+        
+        // Verify signature
+        boolean valid = false;
+        try {
+            valid = verifySignature(userid, encryptedAesKey, signature);
+        } catch (Exception e) {
+            System.err.println("Signature verification error: " + e.getMessage());
+        }
+        
+        if (valid) {
+            System.out.println("Signature VALID for " + userid);
+            
+            // Decrypt AES key
+            byte[] decryptedAesKey = decryptAesKey(encryptedAesKey);
+            
+            // Send success response
+            out.writeBoolean(true);
+            out.writeInt(decryptedAesKey.length);
+            out.write(decryptedAesKey);
+            out.flush();
+            
+            System.out.println("Decrypted AES key sent to " + userid);
+        } else {
+            System.out.println("Signature INVALID for " + userid);
+            System.out.println("Verification failed. Access denied.");
+            
+            // Send failure response
+            out.writeBoolean(false);
+            out.writeUTF("Signature verification failed");
+            out.flush();
         }
     }
     
@@ -61,6 +117,7 @@ public class Server {
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         masterPrivateKey = keyFactory.generatePrivate(keySpec);
+        System.out.println("Master private key loaded.");
     }
     
     // Load user's public key from <userid>.pub (raw encoded bytes)
@@ -90,22 +147,5 @@ public class Server {
         Cipher rsaCipher = Cipher.getInstance("RSA");
         rsaCipher.init(Cipher.DECRYPT_MODE, masterPrivateKey);
         return rsaCipher.doFinal(encryptedAesKey);
-    }
-    
-    // Decrypt test.txt.cry to test.txt
-    private static void decryptFile(byte[] aesKeyBytes) throws Exception {
-        SecretKey aesKey = new SecretKeySpec(aesKeyBytes, "AES");
-        
-        byte[] iv = new byte[16]; // all zeros
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        cipher.init(Cipher.DECRYPT_MODE, aesKey, ivSpec);
-        
-        byte[] ciphertext = Files.readAllBytes(Paths.get("test.txt.cry"));
-        byte[] plaintext = cipher.doFinal(ciphertext);
-        
-        Files.write(Paths.get("test.txt"), plaintext);
-        System.out.println("File decrypted! test.txt recovered.");
-        System.out.println("Content: " + new String(plaintext));
     }
 }
