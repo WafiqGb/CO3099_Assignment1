@@ -32,21 +32,22 @@ server-b64.prv
 *.prv
 
 # ===========================================
-# Utility files (not part of submission)
-# ===========================================
-# Key generators - useful but not submitted
-KeyGen.java
-RSAKeyGen.java
-
-# ===========================================
 # OS files
 # ===========================================
 .DS_Store
 Thumbs.db
 
 # ===========================================
-# Files to SUBMIT (not ignored):
-# - WannaCry.java
-# - Decryptor.java
-# - Server.java
+# PROJECT STRUCTURE:
+#
+# /                     <- Root (submission files here)
+# ├── WannaCry.java     <- SUBMIT
+# ├── Decryptor.java    <- SUBMIT  
+# ├── Server.java       <- SUBMIT
+# ├── docs/             <- Documentation
+# │   ├── README.md
+# │   └── COMMANDS.md
+# └── tools/            <- Utilities (not submitted)
+#     ├── KeyGen.java
+#     └── RSAKeyGen.java
 # ===========================================
